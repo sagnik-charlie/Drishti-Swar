@@ -15,14 +15,14 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:camera/camera.dart';
 
 
-class SpeechtoTextScreen extends StatefulWidget {
-  SpeechtoTextScreen({super.key});
+class MainPage extends StatefulWidget {
+  MainPage({super.key});
 
   @override
-  _SpeechtoTextScreenState createState() => _SpeechtoTextScreenState();
+  _MainPageState createState() => _MainPageState();
 }
 
-class _SpeechtoTextScreenState extends State<SpeechtoTextScreen> {
+class _MainPageState extends State<MainPage> {
   SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
   bool isloading=false;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:text2speech/speech2text.dart';
+import 'package:text2speech/viewpage.dart';
 
 void main() {
   runApp(MyApp());
@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return  MaterialApp(
       title: 'DL Hackathon',
-      home: SpeechtoTextScreen(),
+      home: MainPage(),
     );
   }
 }
