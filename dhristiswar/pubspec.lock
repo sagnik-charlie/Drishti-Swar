@@ -685,6 +685,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.1"
+  text_neon_widget:
+    dependency: "direct main"
+    description:
+      name: text_neon_widget
+      sha256: c0d92e9d63b0c15b069f9fc7bc8172615d1f8c3ad526c003e54b7dadeb15d31b
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.6"
   typed_data:
     dependency: transitive
     description:

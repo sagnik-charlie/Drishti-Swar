@@ -1,13 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:text_neon_widget/text_neon_widget.dart';
 import 'dart:math';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:path/path.dart' as Path;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-// import 'package:speech_to_text/speech_recognition_result.dart';
-// import 'package:speech_to_text/speech_to_text.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:lottie/lottie.dart';
@@ -16,18 +17,19 @@ import 'package:camera/camera.dart';
 
 
 class MainPage extends StatefulWidget {
-  MainPage({super.key});
-
+  MainPage({super.key,required this.startupsound});
+  bool startupsound=true;
   @override
   _MainPageState createState() => _MainPageState();
 }
 
 class _MainPageState extends State<MainPage> {
-  // SpeechToText _speechToText = SpeechToText();
+  SpeechToText _speechToText = SpeechToText();
   bool _speechEnabled = false;
   bool isloading=false;
   bool noStartUpAudio=false;
   String _lastWords = '';
+  String mic_words='';
   double _currentVolume = 0.0;
   double _initialVolume = 0.0;
   bool cameraViewEnabled=false;
@@ -41,15 +43,22 @@ class _MainPageState extends State<MainPage> {
   XFile? cameraPicture;
   CameraController? controller;
   bool toggleswitch=false;
-
+ 
 
   @override
   void initState() {
     super.initState();
-    //_initSpeech();
-    if(noStartUpAudio==false){
-    flutterTts.clearVoice();
+    initializeCamera();
+    _initSpeech();
     player = AudioPlayer();
+    noStartUpAudio= widget.startupsound;
+    if(noStartUpAudio==false){
+      player.stop();
+      player.dispose();
+    }
+    if(noStartUpAudio==true){
+    flutterTts.clearVoice();
+    
     
     // Set the release mode to keep the source after playback has completed.
     player.setReleaseMode(ReleaseMode.stop);
@@ -60,15 +69,18 @@ class _MainPageState extends State<MainPage> {
     });
     }
     FlutterVolumeController.addListener((volume) {
-      if(_initialVolume>_currentVolume || _initialVolume<_currentVolume)
-      { if(!cameraViewEnabled){
-        initializeCamera();
-        cameraViewEnabled=true;
+      if(_speechToText.isListening){
+       
       }
+      if(_initialVolume<_currentVolume || _initialVolume<_currentVolume)
+      { 
+        if(!cameraViewEnabled){
+         initializeCamera();
+        cameraViewEnabled=true;
         flutterTts.clearVoice();
         if(controller!.value.isInitialized)
         flutterTts.speak('Opened Camera. Tap to capture.');
-      }
+      }}
       setState(() {
         _currentVolume = volume;
       });
@@ -90,11 +102,10 @@ class _MainPageState extends State<MainPage> {
   });
   }
 
-  /// This has to happen only once per app
-  // void _initSpeech() async {
-  //   _speechEnabled = await _speechToText.initialize();
-  //   setState(() {});
-  // }
+  void _initSpeech() async {
+    _speechEnabled = await _speechToText.initialize();
+    setState(() {});
+  }
 
   void initializeCamera() async {
   // Fetch available cameras
@@ -102,7 +113,7 @@ class _MainPageState extends State<MainPage> {
   // Set up the first camera for preview
   controller = CameraController(cameras.first, ResolutionPreset.medium,enableAudio: false,);
   // Initialize the camera controller
-  controller?.initialize().then((_) {
+  await controller?.initialize().then((_) {
       if (!mounted) {
         return;
       }});
@@ -112,7 +123,7 @@ class _MainPageState extends State<MainPage> {
 
 
   
-  Future<void> getCaption(context, ImageSource? source,XFile? img) async{
+  Future<void> getCaption(context, ImageSource? source,XFile? img, String? txt) async{
     if(source!=null){
      img = await ImagePicker().pickImage(source: source);
      cameraPicture=img;
@@ -123,30 +134,66 @@ class _MainPageState extends State<MainPage> {
     // Prepare the image file
     var imageFile = await MultipartFile.fromFile(img.path, filename: img.name);
 
-    // Create FormData with a single file entry
-    var data = FormData.fromMap({
+    // Create FormData with a single file entry for blip-vq and blip-base model
+    var data;
+    if(txt==null){
+    data = FormData.fromMap({
       'file': imageFile,
     });
-
-    // Create a Dio instance
-    var dio = Dio();
     setState((){
       isloading=true;
-              });
+        });
+    }
+     if(txt!=null){
+    data = FormData.fromMap({
+      'file': imageFile,
+      'text': txt,
+    });
+    
+    }
+    // Create a Dio instance
+    var dio = Dio();
+    
     // Send the POST request with error handling
-    var response = await dio.post(
-      'http://34.16.230.86:9090/upload_file', 
+    var response;
+    if(txt==null){
+      response = await dio.post(
+      'http://34.125.59.128:9090/upload_file', 
+      //'http://172.18.43.37:8000/upload_file',
       data: data,
       options: Options(method: 'POST'),
     );
-
-    if (response.statusCode == 200) {
+    }
+     if(txt!=null){
+      // response.data='{"captions": "your query is that $txt"}';
+      // response.statusCode=200;
+      setState(() {
+        isloading=false;
+        _lastWords=txt;
+      });
+      
+      flutterTts.speak(_lastWords);
+     // ResultPage(lastWord: _lastWords,cameraPicture: cameraPicture);
+    }
+      
+    if (response.statusCode == 200 && txt==null) {
       var decodedJson=(json.encode(response.data));
       _lastWords=decodedJson.replaceAll(RegExp(r'{'), '').replaceAll(RegExp(r'}'), '').replaceAll(RegExp(r':'), '').replaceAll(RegExp(r']'), '').replaceAll(RegExp(r'"'), '').replaceAll(RegExp(r'caption'), '');
+      flutterTts.clearVoice();
+      setState(() {
+        isloading=false;
+      });
+        
+      // if(txt==null){
        _lastWords=startToken[Random().nextInt(3)]+_lastWords+endToken;
-       flutterTts.clearVoice();
+      //  }
+      // if(txt!=null){
+      //  _lastWords=mic_words;
+      //  Navigator.push(context, MaterialPageRoute(builder: (context) => ResultPage(lastWord: _lastWords,cameraPicture: cameraPicture,)));
+      //  }
+
        flutterTts.speak(_lastWords);
-       isloading=false;
+       
     } else {
       print(response.statusMessage);
     }
@@ -181,7 +228,7 @@ class _MainPageState extends State<MainPage> {
     await controller!.takePicture().then((value)  {
       flutterTts.clearVoice();
       flutterTts.speak("Picture Clicked.. Please Wait");
-      getCaption(context, null, value);
+      getCaption(context, null, value,null);
       setState(() {
     cameraPicture=value;
     cameraViewEnabled=false;  
@@ -198,27 +245,40 @@ class _MainPageState extends State<MainPage> {
     print('Error taking picture: $e');
   }
 }
+  void _startListening() async {
+    
+    await _speechToText.listen(onResult: _onSpeechResult);
 
-  // void _stopListening() async {
-  //   await _speechToText.stop();
-  //   setState(() {});
-  // }
+    setState(() {
+    });
+  }
 
-  // void _onSpeechResult(SpeechRecognitionResult result) {
-  //   setState(() {
-  //     _lastWords = result.recognizedWords;
-  //   });
+  void _stopListening() async {
+    await _speechToText.stop();
+    setState(() {});
+  }
 
-  // }
+  void _onSpeechResult(SpeechRecognitionResult result) {
+    setState(() {
+      mic_words = result.recognizedWords;
+    });
 
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        // leading: IconButton(
+        //     icon: Image.asset('assets/dhristiswarlogo.png'), // Replace 'assets/icon.png' with your image asset path
+        //     onPressed: () {
+        //       getDrawer();
+        //     },
+        //   ),
         title: Text('Welcome!',style: TextStyle(color: Colors.white),),
-          backgroundColor: Color.fromARGB(255, 37, 91, 153),),
-          drawer: getDrawer(),
-          backgroundColor: Colors.amberAccent,
+          backgroundColor: Color.fromARGB(255, 37, 91, 153),
+          ),
+        drawer: getDrawer(),
+        backgroundColor: Colors.amberAccent,
       body: Stack(
           fit: StackFit.expand,
           children: [
@@ -233,14 +293,37 @@ class _MainPageState extends State<MainPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
+            PTTextNeon(text: 'I m a g e  S p e a k s',color: Colors.lightBlue,
+            font: "five",shine: true,fontSize: 35,
+            strokeWidthTextHigh: 3,blurRadius: 25,
+            strokeWidthTextLow: 1,backgroundColor: Colors.black,),
+          mic_words!=''?Lottie.asset('assets/mic_animation.json'):Text(''),
           cameraPicture!=null?Container(
                 padding: EdgeInsets.all(16),
-                child:isloading?Lottie.asset('assets/loading_animation.json'):            
-            Column(
+                child: isloading?Lottie.asset('assets/loading_animation.json'):GestureDetector(
+                  onDoubleTap: (){
+                 flutterTts.clearVoice();
+                cameraViewEnabled=false;
+              if(cameraPicture!=null && !cameraViewEnabled && _speechToText.isNotListening){
+              flutterTts.speak('Opened Mic. What is your query?');
+              _startListening();
+              getCaption(context, null, cameraPicture, mic_words);
+              }
+              if(_speechToText.isListening){
+                _stopListening();
+                flutterTts.speak(mic_words);
+              }
+              if(_speechToText.isListening){
+                  //_stopListening();
+                  flutterTts.clearVoice();
+                  flutterTts.speak('Wait. getting your answer.');
+          }
+                  },            
+           child: Column(
               children:[
                 Container(
             // Adjust width and height as desired
-           // width: 300.0,
+            width: 300.0,
             height: 300.0,
             decoration: BoxDecoration(
               // Background color for the container
@@ -274,52 +357,57 @@ class _MainPageState extends State<MainPage> {
           Container(
             padding: EdgeInsets.all(10.0),
             height: 100,
-            width: 250,
+            width: 300,
             decoration: BoxDecoration(color: Colors.white,
             borderRadius: BorderRadius.circular(20.0)),
-            child:Text('${_lastWords}',
-              //maxLines: 3,
-              //selectionColor: Colors.greenAccent, // Allow text to wrap
+            child:SingleChildScrollView(
+              child:Text('$_lastWords',
               style: TextStyle(
                 fontSize: 16.0, // Adjust font size as desired
                 color: Colors.black // Color of the underline
               ),
-        ))],)) :
-          Lottie.asset('assets/walking_animation.json'),
+        )))],)))  :
+          GestureDetector(onTap:()=>{
+            player.stop(),flutterTts.speak("Press Volume button to capture."),
+          } ,child: Lottie.asset('assets/walking_animation.json')),
           SizedBox(height: 10,),
-            ElevatedButton(onPressed: (){
-                cameraViewEnabled=false;
-           getCaption(context,ImageSource.camera,null);
-            }, style: ElevatedButton.styleFrom(
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(50.0), // Adjust for desired roundness
-    ),
-    padding: EdgeInsets.all(20.0), // Adjust padding for button size
-    minimumSize: Size(80.0, 80.0), // Set minimum size for the button
-   // primary: Colors.red, // Change color as desired
-  ),
-  child: Icon(Icons.camera_alt, size: cameraPicture!=null?50.0:30))
+  //           ElevatedButton(onPressed: (){
+  //               cameraViewEnabled=false;
+  //          getCaption(context,ImageSource.camera,null,null);
+  //           }, style: ElevatedButton.styleFrom(
+  //   shape: RoundedRectangleBorder(
+  //     borderRadius: BorderRadius.circular(50.0), // Adjust for desired roundness
+  //   ),
+  //   padding: EdgeInsets.all(20.0), // Adjust padding for button size
+  //   minimumSize: Size(80.0, 80.0), // Set minimum size for the button
+  //  // primary: Colors.red, // Change color as desired
+  // ),
+  // child: Icon(Icons.camera_alt, size: cameraPicture!=null?50.0:30))
+ 
           ],
         )),
       ),)]),
       floatingActionButton: FloatingActionButton(
         onPressed: (){
-           getCaption(context,ImageSource.gallery,null);},
+           getCaption(context,ImageSource.gallery,null,null);},
         tooltip: 'Listen',
         child: Icon(Icons.photo_library),
       ),
     );
   }
 
-  Widget cameraPreview()=>
-    GestureDetector(
-    onTap:() async{takePicture();},
+  Widget cameraPreview(){
+    final size = MediaQuery.of(context).size;
+  final deviceRatio = (size.width+50) / size.height;
+    return GestureDetector(
+    onTap:() async{
+      takePicture();},
     child: Scaffold(
    body: (controller == null || !controller!.value.isInitialized)?Container()
-                                  : CameraPreview(key:globalKey,controller!),
+                                  :AspectRatio(aspectRatio: deviceRatio,child: CameraPreview(key:globalKey,controller!)),
   ),
   );
-
+  }
 
 
   Widget getDrawer()=>Drawer(
@@ -332,10 +420,11 @@ class _MainPageState extends State<MainPage> {
                 color: Colors.blue,
               ),
               child: Text(
-                'DHRISTISWAR',
+                'DHRISTI SWAR',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
+                  fontStyle: FontStyle.italic
                 ),
               ),
             ),
@@ -343,18 +432,18 @@ class _MainPageState extends State<MainPage> {
               leading: Icon(Icons.home),
               title: Text('Home'),
               onTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => MainPage()),
+                Navigator.push(context, MaterialPageRoute(builder: (context) => MainPage(startupsound: true,)),
                 );}
             ),
             ListTile(
-              leading: Icon(Icons.remove_circle),
-              title: Text('Remove Volume Controls'),
+              leading: Icon(Icons.remove_done),
+              title: Text('Volume Controls'),
               onTap: () {}
             ),
             Switch(value: toggleswitch,
               onChanged: (value) {
                 if(value==false){
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => MainPage()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => MainPage(startupsound: true,)));
                 }
                 else{
                     FlutterVolumeController.removeListener();
@@ -366,12 +455,33 @@ class _MainPageState extends State<MainPage> {
                 setState(() {
                   toggleswitch = !value; 
                 });}),
+                ListTile(
+              leading: Icon(Icons.volume_mute),
+              title: Text('Start-up sound'),
+              onTap: () {}
+            ),
+                Switch(value: widget.startupsound!,
+              onChanged: (value) {
+                if(value==false){
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => MainPage(startupsound:false)));
+                }
+                else{
+                    FlutterVolumeController.removeListener();
+                    flutterTts.clearVoice();
+                    flutterTts.speak("Start up sound removed");
+                    value=false;
+                   // widget.startupsound=true;
+                }
+                setState(() {
+                  
+                });}),
                 
 
             Divider(),
             ListTile(
               title: Text('About'),
-              onTap: ()=>{},
+              onTap: ()=>{
+              },
             ),
             
           ],
