@@ -19,7 +19,7 @@ Blindness presents significant challenges for individuals affected by this condi
 
 **Python**
 * PyTorch v2.08
-* Tranformer
+* Tranformers
 
 **Flutter**
 * image_picker
