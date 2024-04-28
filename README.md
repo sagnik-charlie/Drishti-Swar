@@ -1,4 +1,4 @@
-# Drishti Swar App 📷 🔉 
+# Image Speak: Empowering Visual Understanding App 📷 🔉 
 
 ---
 
