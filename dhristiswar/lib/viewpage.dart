@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/gestures.dart';
 import 'package:text_neon_widget/text_neon_widget.dart';
 import 'dart:math';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -50,7 +51,9 @@ class _MainPageState extends State<MainPage> {
     super.initState();
     initializeCamera();
     _initSpeech();
+    flutterTts.clearVoice();
     player = AudioPlayer();
+    player.stop();
     noStartUpAudio= widget.startupsound;
     if(noStartUpAudio==false){
       player.stop();
@@ -69,11 +72,9 @@ class _MainPageState extends State<MainPage> {
     });
     }
     FlutterVolumeController.addListener((volume) {
-      if(_speechToText.isListening){
-       
-      }
       if(_initialVolume<_currentVolume || _initialVolume<_currentVolume)
       { 
+        flutterTts.clearVoice();
         if(!cameraViewEnabled){
          initializeCamera();
         cameraViewEnabled=true;
@@ -145,9 +146,14 @@ class _MainPageState extends State<MainPage> {
         });
     }
      if(txt!=null){
-    data = FormData.fromMap({
-      'file': imageFile,
-      'text': txt,
+    // Map<dynamic,MultipartFile> files={};
+    // files['file']=await MultipartFile.fromFile(img.path, filename: img.name);
+    List<String> datas = txt.split(" ");
+    
+    
+    data=FormData.fromMap({
+      'ques': datas,
+      'file': await MultipartFile.fromFile(img.path, filename: img.name)
     });
     
     }
@@ -158,43 +164,48 @@ class _MainPageState extends State<MainPage> {
     var response;
     if(txt==null){
       response = await dio.post(
-      'http://34.125.59.128:9090/upload_file', 
-      //'http://172.18.43.37:8000/upload_file',
+      'http://localhost:9090/upload_file', 
+      
       data: data,
       options: Options(method: 'POST'),
     );
     }
      if(txt!=null){
-      // response.data='{"captions": "your query is that $txt"}';
-      // response.statusCode=200;
+      response = await dio.post(
+      'http://localhost:9090/upload_file', 
+      
+      data: data,
+      options: Options(method: 'POST'),
+    );
       setState(() {
         isloading=false;
-        _lastWords=txt;
+        // _lastWords=response.data;
       });
       
-      flutterTts.speak(_lastWords);
+      //flutterTts.speak("Your question is: "+_lastWords);
      // ResultPage(lastWord: _lastWords,cameraPicture: cameraPicture);
     }
       
-    if (response.statusCode == 200 && txt==null) {
+    if (response.statusCode == 200) {
       var decodedJson=(json.encode(response.data));
-      _lastWords=decodedJson.replaceAll(RegExp(r'{'), '').replaceAll(RegExp(r'}'), '').replaceAll(RegExp(r':'), '').replaceAll(RegExp(r']'), '').replaceAll(RegExp(r'"'), '').replaceAll(RegExp(r'caption'), '');
+      _lastWords=decodedJson.replaceAll(RegExp(r'{'), '').replaceAll(RegExp(r'}'), '').replaceAll(RegExp(r':'), ' ').replaceAll(RegExp(r']'), '').replaceAll(RegExp(r'"'), '').replaceAll(RegExp(r'caption'), '');
       flutterTts.clearVoice();
       setState(() {
         isloading=false;
       });
         
-      // if(txt==null){
+      if(txt==null){
        _lastWords=startToken[Random().nextInt(3)]+_lastWords+endToken;
-      //  }
-      // if(txt!=null){
-      //  _lastWords=mic_words;
+       }
+      if(txt!=null)
+       _lastWords=" "+_lastWords;
       //  Navigator.push(context, MaterialPageRoute(builder: (context) => ResultPage(lastWord: _lastWords,cameraPicture: cameraPicture,)));
       //  }
 
-       flutterTts.speak(_lastWords);
+       await flutterTts.speak(_lastWords +".. Double Tap to ask questions.");
        
     } else {
+      flutterTts.speak("No answer");
       print(response.statusMessage);
     }
   } on DioError catch (e) {
@@ -264,6 +275,14 @@ class _MainPageState extends State<MainPage> {
     });
 
   }
+
+  @override
+  void dispose(){
+    setState(() {
+      noStartUpAudio=widget.startupsound;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -301,23 +320,23 @@ class _MainPageState extends State<MainPage> {
           cameraPicture!=null?Container(
                 padding: EdgeInsets.all(16),
                 child: isloading?Lottie.asset('assets/loading_animation.json'):GestureDetector(
-                  onDoubleTap: (){
+                  onDoubleTap: () async{
                  flutterTts.clearVoice();
                 cameraViewEnabled=false;
               if(cameraPicture!=null && !cameraViewEnabled && _speechToText.isNotListening){
-              flutterTts.speak('Opened Mic. What is your query?');
+              flutterTts.speak('Ask your query?');
               _startListening();
-              getCaption(context, null, cameraPicture, mic_words);
+              }
+              if(_speechToText.isNotListening && mic_words!=''){
+                await flutterTts.speak("Your question is: "+mic_words);
+                await getCaption(context, null, cameraPicture, mic_words);
+                mic_words='';
               }
               if(_speechToText.isListening){
                 _stopListening();
-                flutterTts.speak(mic_words);
+               // await flutterTts.speak("Your question is: "+mic_words);
+                await getCaption(context, null, cameraPicture, mic_words);
               }
-              if(_speechToText.isListening){
-                  //_stopListening();
-                  flutterTts.clearVoice();
-                  flutterTts.speak('Wait. getting your answer.');
-          }
                   },            
            child: Column(
               children:[
@@ -413,16 +432,45 @@ class _MainPageState extends State<MainPage> {
   Widget getDrawer()=>Drawer(
     backgroundColor: Colors.white,
         child: ListView(
-          padding: EdgeInsets.zero,
+          padding: EdgeInsets.all(10),
           children: <Widget>[
             DrawerHeader(
               decoration: BoxDecoration(
                 color: Colors.blue,
+                image: DecorationImage(
+      image: AssetImage('assets/Picture1.png'),
+      fit: BoxFit.scaleDown, // Adjusts the image to cover the entire container
+    ),
+    // Add shape
+    shape: BoxShape.rectangle, // Use BoxShape.rectangle for a rectangular shape
+    // Add border
+    border: Border.all(
+      color: Colors.black,
+      width: 2.0,
+    ),
+    // Add border radius (only for rectangular shapes)
+    borderRadius: BorderRadius.circular(10.0),
+    // Add shadow
+    boxShadow: [
+      BoxShadow(
+        color: Colors.grey.withOpacity(0.5),
+        spreadRadius: 5,
+        blurRadius: 7,
+        offset: Offset(0, 3), // changes position of shadow
+      ),
+    ],
+    // Add gradient
+    gradient: LinearGradient(
+      colors: [Colors.red, Colors.blue],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    ),
+  
               ),
               child: Text(
-                'DHRISTI SWAR',
+                '',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Color.fromARGB(255, 10, 222, 233),
                   fontSize: 24,
                   fontStyle: FontStyle.italic
                 ),
@@ -457,10 +505,10 @@ class _MainPageState extends State<MainPage> {
                 });}),
                 ListTile(
               leading: Icon(Icons.volume_mute),
-              title: Text('Start-up sound'),
+              title: Text('Initialize'),
               onTap: () {}
             ),
-                Switch(value: widget.startupsound!,
+              Switch(value: widget.startupsound!,
               onChanged: (value) {
                 if(value==false){
                   Navigator.push(context, MaterialPageRoute(builder: (context) => MainPage(startupsound:false)));
