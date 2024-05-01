@@ -15,6 +15,10 @@ Blindness presents significant challenges for individuals affected by this condi
 
 ---
 
+## Solution Overview
+https://youtu.be/33LEn6C8Vwg
+---
+
 ## Requirements
 
 **Python**
@@ -39,7 +43,7 @@ Blindness presents significant challenges for individuals affected by this condi
 ## Demo
 
 https://drive.google.com/file/d/1Caq0UvRwMP2ezK_bmad9_gY7U9nyvojU/view?usp=sharing
-https://youtu.be/33LEn6C8Vwg
+
 
 ---
 
