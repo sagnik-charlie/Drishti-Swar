@@ -17,7 +17,7 @@ Blindness presents significant challenges for individuals affected by this condi
 
 ## Youtube Video : https://youtu.be/33LEn6C8Vwg
 ---
-## Presentation link : https://prezi.com/view/XK9o4NKJKpOo4UQLoucO/
+
 ## Requirements
 
 **Python**
